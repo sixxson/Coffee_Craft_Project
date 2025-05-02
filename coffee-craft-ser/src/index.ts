@@ -36,9 +36,7 @@ app.use(
   cors({
     origin: [
       "https://coffee-craft-admin-portal.vercel.app",
-      "https://coffee-craft.vercel.app",
       "https://coffee-craft-project-git-main-sixxsons-projects.vercel.app",
-      "http://localhost:3000",
     ],
     credentials: true, // Allow cookies to be sent with requests
   })
