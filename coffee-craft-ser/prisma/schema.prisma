@@ -1,0 +1,314 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------- ENUMS ---------
+
+enum UserRole {
+  CUSTOMER
+  STAFF
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELED
+}
+
+// Added new PaymentStatus enum
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  COD
+  CREDIT_CARD
+  VNPAY
+}
+
+enum VoucherType {
+  PERCENT
+  FIXED
+}
+
+enum GENDER {
+  MALE
+  FEMALE
+  OTHER
+}
+
+// --------- MODELS ---------
+
+model User {
+  id            String    @id @default(uuid())
+  name          String?
+  email         String    @unique
+  password      String
+  phone         String?
+  address       String?
+  imgUrl        String?
+  gender        GENDER?
+  dob           DateTime?
+  role          UserRole  @default(CUSTOMER)
+  emailVerified Boolean   @default(false)
+  lastLogin     DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  orders            Order[]
+  blogs             Blog[]
+  reviews           Review[]
+  shippingAddresses ShippingAddress[]
+  orderHistoryEntries OrderHistory[] // Relation to order history entries made by this user
+}
+
+model ShippingAddress {
+  id            String @id @default(uuid())
+  userId        String
+  address       String
+  receiverName  String
+  receiverPhone String
+
+  orders Order[]
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model Category {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+  parentId    String?
+  order       Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  parent             Category?  @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: Restrict)
+  children           Category[] @relation("CategoryToCategory")
+  products           Product[]
+  applicableVouchers Voucher[]
+
+  @@unique([parentId, name])
+}
+
+model Brand {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  order       Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  products Product[]
+}
+
+model Product {
+  id               String   @id @default(uuid())
+  sku              String   @unique
+  name             String
+  shortDescription String?
+  longDescription  String?
+  price            Decimal
+  discountPrice    Decimal?
+  categoryId       String
+  brandId          String?
+  stock            Int
+  active           Boolean  @default(true)
+  avgRating        Float    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  category   Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict) // Added onDelete
+  brand      Brand?           @relation(fields: [brandId], references: [id], onDelete: SetNull) // Added onDelete
+  orderItems OrderItem[]
+  reviews    Review[]
+  images     ProductImage[]
+  tags       Tag[]
+  variants   ProductVariant[]
+
+  vouchersExcluding Voucher[] // Relation for vouchers excluding this product
+}
+
+model ProductVariant {
+  id            String   @id @default(uuid())
+  productId     String
+  sku           String?  @unique
+  price         Decimal
+  discountPrice Decimal?
+  stock         Int
+  name          String
+  color         String?
+  weight        String?
+  material      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  Review     Review[]
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  products Product[]
+}
+
+model ProductImage {
+  id          String  @id @default(uuid())
+  productId   String
+  url         String // URL from external storage
+  order       Int? // Sorting order
+  isThumbnail Boolean @default(false)
+  // altText  String? // Optional: Alt text for SEO/accessibility
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model Order {
+  id                String        @id @default(uuid())
+  userId            String
+  total             Decimal // Original total before discounts/fees
+  shippingFee       Decimal       @default(0)
+  discountAmount    Decimal       @default(0)
+  finalTotal        Decimal // The actual amount charged (total - discountAmount + shippingFee + taxes...)
+  status            OrderStatus   @default(PENDING)
+  paymentStatus     PaymentStatus @default(PENDING)
+  voucherId         String?
+  shippingAddressId String
+  paymentMethod     PaymentMethod @default(COD)
+  note              String?
+  transactionId     String?
+
+  createdAt DateTime @default(now()) // Represents the order placement time
+  updatedAt DateTime @default(now()) @updatedAt
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voucher         Voucher?        @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  shippingAddress ShippingAddress @relation(fields: [shippingAddressId], references: [id], onDelete: Restrict)
+  orderItems      OrderItem[]
+  history         OrderHistory[] // Relation to the history table
+}
+
+model OrderItem {
+  id               String  @id @default(uuid())
+  orderId          String
+  productId        String
+  productVariantId String?
+  quantity         Int
+  priceAtOrder     Decimal
+  subTotal         Decimal
+  discountAmount   Decimal @default(0)
+  review           Review?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
+}
+
+model Voucher {
+  id                   String      @id @default(uuid())
+  code                 String      @unique
+  discountPercent      Decimal? // Made optional, either percent or fixed amount
+  discountAmount       Decimal? // Fixed discount amount
+  maxDiscount          Decimal? // Max discount applicable (especially for percent type)
+  type                 VoucherType
+  startDate            DateTime
+  endDate              DateTime
+  usageLimit           Int? // Total usage limit for the voucher code
+  usedCount            Int         @default(0) // Track how many times it has been used (replace usedLeft)
+  minimumOrderValue    Decimal? // Added: Minimum order value to apply
+  isActive             Boolean     @default(true)
+  // Define excluded products via many-to-many relation
+  applicableCategories Category[]
+  excludedProducts     Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  orders Order[] // Orders that used this voucher
+}
+
+model Blog {
+  id              String   @id @default(uuid())
+  title           String
+  content         String
+  thumbnail       String? // URL from external storage
+  userId          String
+  publicationDate DateTime // Consider making optional or default to now()
+  active          Boolean  @default(true)
+  // slug         String?  @unique // Optional: For SEO URLs
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  author User @relation(fields: [userId], references: [id], onDelete: Cascade) 
+}
+
+model Review {
+  id      String  @id @default(uuid())
+  rating  Int // 1-5
+  comment String?
+
+  orderItemId String    @unique
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  // Vẫn giữ lại để dễ truy vấn theo user và product trực tiếp
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  productVariantId String?
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([userId])
+  @@index([productId])
+  @@index([productVariantId])
+}
+model OrderHistory {
+  id        String   @id @default(uuid())
+  orderId   String   // Foreign key to the Order
+  userId    String?  // Foreign key to the User who made the change (nullable if system change?)
+  timestamp DateTime @default(now()) // When the change occurred
+  field     String?  // Which field changed (e.g., 'status', 'note', 'shippingAddressId') - Made optional
+  oldValue  String?  // The value before the change (optional, stored as string)
+  newValue  String?  // The value after the change (stored as string)
+  action    String   // Type of action (e.g., 'UPDATE_STATUS', 'UPDATE_NOTE', 'CREATE_ORDER')
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull) // User might be deleted
+
+  @@index([orderId])
+  @@index([userId])
+}
