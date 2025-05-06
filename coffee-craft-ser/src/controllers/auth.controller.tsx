@@ -36,8 +36,8 @@ export const register = async (req: Request, res: Response) => {
     password,
     name = "",
     role = "CUSTOMER",
-    phone,
-    address = undefined,
+    phone="",
+    address= undefined,
     gender = undefined,
   } = req.body;
 
