@@ -40,7 +40,7 @@ export default function Register() {
         setIsLoading(true);
 
         if (!passwordMatch) {
-            toast.error("Passwords do not match!");
+            toast.error("Mật khẩu không trùng !");
             setIsLoading(false);
             return;
         }
@@ -61,7 +61,7 @@ export default function Register() {
             const result = await response.json();
 
             if (response.ok) {
-                toast.success("User created successfully");
+                toast.success("Đăng ký thành công");
                 reset();
                 router.push(`/login`);
             } else {
