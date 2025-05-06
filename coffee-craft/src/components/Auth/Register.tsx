@@ -110,7 +110,7 @@ export default function Register() {
               label="Số điện thoại"
               register={register}
               name="phone"
-              type="string"
+              type="text"
               errors={errors}
               placeholder="0123456789"
             />
